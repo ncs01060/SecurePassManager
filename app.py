@@ -5,10 +5,10 @@ import random
 import string
 import time
 from urllib.parse import urlparse
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QLineEdit, QListWidget, QMessageBox, 
                              QInputDialog, QSystemTrayIcon, QStyle, QListWidgetItem, QDialog, QFormLayout)
-from PyQt5.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer
 import pyperclip
 
 from crypto_utils import generate_key, encrypt_data, decrypt_data
@@ -65,7 +65,7 @@ class LoginDialog(QDialog):
         layout.addWidget(lbl)
         
         self.pwd_input = QLineEdit()
-        self.pwd_input.setEchoMode(QLineEdit.Password)
+        self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.pwd_input)
         
         btn = QPushButton("Login" if not self.is_new else "Create")
@@ -155,7 +155,7 @@ class PasswordManager(QMainWindow):
         
         # System Tray logic (Feature 5)
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
+        self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
         self.tray_icon.show()
         
         self.setup_ui()
@@ -204,7 +204,7 @@ class PasswordManager(QMainWindow):
 
     def add_password(self):
         dialog = AddPasswordDialog(self.get_all_decrypted_passwords())
-        if dialog.exec_():
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             site, user, pwd = dialog.get_data()
             if not site or not pwd:
                 QMessageBox.warning(self, "Warning", "Site and Password are required.")
@@ -233,11 +233,11 @@ class PasswordManager(QMainWindow):
         for row in cur.fetchall():
             db_id, site, user = row
             item = QListWidgetItem(f"[{site}]  User: {user}")
-            item.setData(Qt.UserRole, db_id)
+            item.setData(Qt.ItemDataRole.UserRole, db_id)
             self.list_widget.addItem(item)
 
     def copy_password(self, item):
-        db_id = item.data(Qt.UserRole)
+        db_id = item.data(Qt.ItemDataRole.UserRole)
         cur = self.db.conn.cursor()
         cur.execute("SELECT site, enc_password FROM passwords WHERE id = ?", (db_id,))
         row = cur.fetchone()
@@ -272,7 +272,7 @@ class PasswordManager(QMainWindow):
                     pwd = decrypt_data(enc_pwd, self.key)
                     pyperclip.copy(pwd)
                     self.last_clipboard_text = pwd
-                    self.tray_icon.showMessage("Password Manager", f"Detected site '{site}'. Password automatically copied to clipboard!", QSystemTrayIcon.Information, 3000)
+                    self.tray_icon.showMessage("Password Manager", f"Detected site '{site}'. Password automatically copied to clipboard!", QSystemTrayIcon.MessageIcon.Information, 3000)
                     break
         except Exception:
             pass
@@ -284,14 +284,14 @@ def main():
     db = Database()
     
     login = LoginDialog(db)
-    if login.exec_() == QDialog.Accepted:
+    if login.exec() == QDialog.DialogCode.Accepted:
         key = login.key
         window = PasswordManager(db, key)
         window.show()
         
         # When main window closes, exit app completely
         app.setQuitOnLastWindowClosed(True)
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()
