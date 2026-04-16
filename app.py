@@ -55,20 +55,20 @@ class LoginDialog(QDialog):
         super().__init__()
         self.db = db
         self.key = None
-        self.setWindowTitle("Password Manager Login")
+        self.setWindowTitle("비밀번호 관리자 로그인")
         self.setFixedSize(300, 150)
         
         layout = QVBoxLayout()
         self.is_new = self.db.get_meta("salt") is None
         
-        lbl = QLabel("Create Master Password:" if self.is_new else "Enter Master Password:")
+        lbl = QLabel("마스터 비밀번호 생성:" if self.is_new else "마스터 비밀번호 입력:")
         layout.addWidget(lbl)
         
         self.pwd_input = QLineEdit()
         self.pwd_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.pwd_input)
         
-        btn = QPushButton("Login" if not self.is_new else "Create")
+        btn = QPushButton("로그인" if not self.is_new else "생성하기")
         btn.clicked.connect(self.attempt_login)
         layout.addWidget(btn)
         
@@ -77,7 +77,7 @@ class LoginDialog(QDialog):
     def attempt_login(self):
         pwd = self.pwd_input.text().strip()
         if not pwd:
-            QMessageBox.warning(self, "Error", "Password cannot be empty.")
+            QMessageBox.warning(self, "오류", "비밀번호를 입력해주세요.")
             return
 
         if self.is_new:
@@ -100,14 +100,14 @@ class LoginDialog(QDialog):
                     self.key = key
                     self.accept()
             except Exception:
-                QMessageBox.critical(self, "Failed", "Incorrect Master Password.")
+                QMessageBox.critical(self, "로그인 실패", "마스터 비밀번호가 틀렸습니다.")
                 self.pwd_input.clear()
 
 class AddPasswordDialog(QDialog):
     def __init__(self, existing_passwords):
         super().__init__()
         self.existing_passwords = existing_passwords
-        self.setWindowTitle("Add Password")
+        self.setWindowTitle("비밀번호 추가")
         self.setFixedSize(350, 200)
         
         layout = QFormLayout()
@@ -116,18 +116,18 @@ class AddPasswordDialog(QDialog):
         self.user_input = QLineEdit()
         self.pwd_input = QLineEdit()
         
-        layout.addRow("Site (Domain):", self.site_input)
-        layout.addRow("Username/Email:", self.user_input)
+        layout.addRow("사이트 (도메인):", self.site_input)
+        layout.addRow("사용자 ID/이메일:", self.user_input)
         
         pwd_layout = QHBoxLayout()
         pwd_layout.addWidget(self.pwd_input)
-        btn_gen = QPushButton("Generate Safe")
+        btn_gen = QPushButton("안전한 암호 생성")
         btn_gen.clicked.connect(self.generate_pwd)
         pwd_layout.addWidget(btn_gen)
         
-        layout.addRow("Password:", pwd_layout)
+        layout.addRow("비밀번호:", pwd_layout)
         
-        btn_save = QPushButton("Save")
+        btn_save = QPushButton("저장")
         btn_save.clicked.connect(self.accept)
         layout.addRow("", btn_save)
         
@@ -150,7 +150,7 @@ class PasswordManager(QMainWindow):
         super().__init__()
         self.db = db
         self.key = key
-        self.setWindowTitle("Secure Password Manager")
+        self.setWindowTitle("안전한 비밀번호 관리자")
         self.resize(600, 400)
         
         # System Tray logic (Feature 5)
@@ -173,11 +173,11 @@ class PasswordManager(QMainWindow):
         
         top_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search site...")
+        self.search_input.setPlaceholderText("사이트 검색...")
         self.search_input.textChanged.connect(self.load_passwords)
         top_layout.addWidget(self.search_input)
         
-        btn_add = QPushButton("Add New Password")
+        btn_add = QPushButton("새 비밀번호 추가")
         btn_add.clicked.connect(self.add_password)
         top_layout.addWidget(btn_add)
         
@@ -187,7 +187,7 @@ class PasswordManager(QMainWindow):
         self.list_widget.itemDoubleClicked.connect(self.copy_password)
         layout.addWidget(self.list_widget)
         
-        lbl_hint = QLabel("💡 Double click a site above to copy the password securely automatically.\n💡 Copy a URL in your browser to get an auto-notification of your password!")
+        lbl_hint = QLabel("💡 목록을 더블 클릭하면 비밀번호가 클립보드에 즉시 복사됩니다.\n💡 브라우저에서 주소(URL)를 복사하면 프로그램이 자동으로 비밀번호를 찾아줍니다!")
         lbl_hint.setStyleSheet("color: gray;")
         layout.addWidget(lbl_hint)
 
@@ -207,7 +207,7 @@ class PasswordManager(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             site, user, pwd = dialog.get_data()
             if not site or not pwd:
-                QMessageBox.warning(self, "Warning", "Site and Password are required.")
+                QMessageBox.warning(self, "경고", "사이트명과 비밀번호는 필수 입력 항목입니다.")
                 return
             
             enc_pwd = encrypt_data(pwd, self.key)
@@ -218,7 +218,7 @@ class PasswordManager(QMainWindow):
                 self.db.conn.commit()
                 self.load_passwords()
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"Could not save password: {e}")
+                QMessageBox.critical(self, "오류", f"비밀번호를 저장할 수 없습니다: {e}")
 
     def load_passwords(self):
         search = self.search_input.text().lower()
@@ -247,9 +247,9 @@ class PasswordManager(QMainWindow):
                 pwd = decrypt_data(enc_pwd, self.key)
                 pyperclip.copy(pwd)
                 self.last_clipboard_text = pwd  # prevent self-triggering clipboard
-                QMessageBox.information(self, "Copied", f"Password for '{site}' has been copied to your clipboard securely.\nPaste it by pressing Cmd+V.")
+                QMessageBox.information(self, "복사 완료", f"'{site}'의 비밀번호가 클립보드에 복사되었습니다.\n원하는 곳에 붙여넣기(Ctrl+V) 하세요.")
             except Exception as e:
-                QMessageBox.critical(self, "Error", "Failed to decrypt password.")
+                QMessageBox.critical(self, "오류", "비밀번호 복호화에 실패했습니다.")
 
     def on_clipboard_change(self):
         text = self.clipboard.text().strip().lower()
@@ -272,7 +272,7 @@ class PasswordManager(QMainWindow):
                     pwd = decrypt_data(enc_pwd, self.key)
                     pyperclip.copy(pwd)
                     self.last_clipboard_text = pwd
-                    self.tray_icon.showMessage("Password Manager", f"Detected site '{site}'. Password automatically copied to clipboard!", QSystemTrayIcon.MessageIcon.Information, 3000)
+                    self.tray_icon.showMessage("비밀번호 관리자", f"'{site}' 사이트 감지! 비밀번호가 클립보드에 복사되었습니다.", QSystemTrayIcon.MessageIcon.Information, 3000)
                     break
         except Exception:
             pass
