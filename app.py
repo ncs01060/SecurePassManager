@@ -4,17 +4,56 @@ import sqlite3
 import random
 import string
 import time
+import threading
+import urllib.request
+import subprocess
 from urllib.parse import urlparse
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QLineEdit, QListWidget, QMessageBox, 
                              QInputDialog, QSystemTrayIcon, QStyle, QListWidgetItem, QDialog, QFormLayout)
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QIcon, QPixmap
 import pyperclip
 
 from crypto_utils import generate_key, encrypt_data, decrypt_data
 from cryptography.exceptions import InvalidKey
 
 DB_PATH = "pwd_manager.db"
+ICON_DIR = "icons"
+
+if not os.path.exists(ICON_DIR):
+    os.makedirs(ICON_DIR)
+
+def download_favicon(site):
+    """사이트의 파비콘을 백그라운드에서 다운로드합니다."""
+    # 도메인 추출 혹은 단순 사이트명 사용
+    domain = site.split()[0] if site else ""
+    path = os.path.join(ICON_DIR, f"{domain}.png")
+    
+    if os.path.exists(path):
+        return
+
+    def _download():
+        try:
+            # Google Favicon API 사용
+            url = f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as response, open(path, 'wb') as out_file:
+                out_file.write(response.read())
+        except Exception as e:
+            print(f"Icon download failed for {domain}: {e}")
+
+    threading.Thread(target=_download, daemon=True).start()
+
+def get_chrome_url():
+    """macOS AppleScript를 이용해 Google Chrome의 현재 탭 URL을 가져옵니다."""
+    try:
+        script = 'tell application "Google Chrome" to get URL of active tab of front window'
+        result = subprocess.check_output(['osascript', '-e', script], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+        return result
+    except:
+        return None
 
 class Database:
     def __init__(self):
@@ -161,6 +200,13 @@ class PasswordManager(QMainWindow):
         self.setup_ui()
         self.load_passwords()
         
+        # Browser monitoring timer
+        self.browser_timer = QTimer(self)
+        self.browser_timer.timeout.connect(self.update_active_site)
+        self.browser_timer.start(2000) # 2초마다 체크
+        
+        self.last_pop_site = "" # 팝업 중복 방지용
+        
         # Clipboard monitoring
         self.clipboard = QApplication.clipboard()
         self.clipboard.dataChanged.connect(self.on_clipboard_change)
@@ -170,6 +216,19 @@ class PasswordManager(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
+        
+        # Browser Detection Label
+        self.active_site_label = QLabel("🌐 Chrome 브라우저 감지 중...")
+        self.active_site_label.setStyleSheet("""
+            background-color: #f8f9fa; 
+            border: 1px solid #dee2e6; 
+            border-radius: 8px; 
+            padding: 10px; 
+            font-size: 13px; 
+            color: #495057;
+        """)
+        self.active_site_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.active_site_label)
         
         top_layout = QHBoxLayout()
         self.search_input = QLineEdit()
@@ -233,6 +292,16 @@ class PasswordManager(QMainWindow):
         for row in cur.fetchall():
             db_id, site, user = row
             item = QListWidgetItem(f"[{site}]  User: {user}")
+            
+            # 파비콘 아이콘 설정
+            icon_path = os.path.join(ICON_DIR, f"{site}.png")
+            if os.path.exists(icon_path):
+                item.setIcon(QIcon(icon_path))
+            else:
+                # 기본 아이콘 설정 후 다운로드 시도
+                item.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon))
+                download_favicon(site)
+                
             item.setData(Qt.ItemDataRole.UserRole, db_id)
             self.list_widget.addItem(item)
 
@@ -262,20 +331,66 @@ class PasswordManager(QMainWindow):
         try:
             domain = urlparse(text).netloc if text.startswith("http") else text
             domain = domain.replace("www.", "")
-            
-            cur = self.db.conn.cursor()
-            cur.execute("SELECT site, enc_password FROM passwords")
-            for row in cur.fetchall():
-                site, enc_pwd = row
-                if site in text or site in domain:
-                    # Found a match!
-                    pwd = decrypt_data(enc_pwd, self.key)
-                    pyperclip.copy(pwd)
-                    self.last_clipboard_text = pwd
-                    self.tray_icon.showMessage("비밀번호 관리자", f"'{site}' 사이트 감지! 비밀번호가 클립보드에 복사되었습니다.", QSystemTrayIcon.MessageIcon.Information, 3000)
-                    break
+            self.match_and_copy(domain)
         except Exception:
             pass
+
+    def update_active_site(self):
+        """현재 크롬 탭을 확인하고 UI를 업데이트합니다."""
+        url = get_chrome_url()
+        if not url:
+            self.active_site_label.setText("🌐 Chrome이 실행 중이지 않거나 탭을 찾을 수 없습니다.")
+            self.active_site_label.setStyleSheet("background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; color: #adb5bd;")
+            return
+
+        try:
+            domain = urlparse(url).netloc.replace("www.", "")
+            if not domain: domain = url
+
+            # UI 업데이트
+            self.active_site_label.setText(f"📍 현재 접속 중: {domain}")
+            
+            # DB에서 해당 사이트가 있는지 확인
+            cur = self.db.conn.cursor()
+            cur.execute("SELECT site FROM passwords")
+            found = False
+            for row in cur.fetchall():
+                site = row[0]
+                if site in domain or domain in site:
+                    found = True
+                    break
+            
+            if found:
+                self.active_site_label.setText(f"✅ [저장됨] {domain} - 비밀번호가 준비되었습니다.")
+                self.active_site_label.setStyleSheet("background-color: #d1e7dd; border: 1px solid #a3cfbb; border-radius: 8px; padding: 10px; color: #0f5132; font-weight: bold;")
+                
+                # 새로운 사이트가 감지되었을 때만 팝업 표시
+                if domain != self.last_pop_site:
+                    self.last_pop_site = domain
+                    reply = QMessageBox.question(self, "비밀번호 복사", 
+                                                 f"'{domain}' 사이트가 감지되었습니다.\n비밀번호를 클립보드에 복사할까요?",
+                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.match_and_copy(domain)
+            else:
+                self.active_site_label.setStyleSheet("background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 10px; color: #856404;")
+                self.last_pop_site = "" # 저장 안 된 사이트로 이동 시 초기화
+                
+        except Exception:
+            pass
+
+    def match_and_copy(self, search_text):
+        """텍스트에 사이트명이 포함되어 있으면 비밀번호를 복사합니다."""
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT site, enc_password FROM passwords")
+        for row in cur.fetchall():
+            site, enc_pwd = row
+            if site in search_text:
+                pwd = decrypt_data(enc_pwd, self.key)
+                pyperclip.copy(pwd)
+                self.last_clipboard_text = pwd
+                self.tray_icon.showMessage("비밀번호 관리자", f"'{site}' 사이트 감지! 비밀번호가 복사되었습니다.", QSystemTrayIcon.MessageIcon.Information, 3000)
+                break
 
 def main():
     app = QApplication(sys.argv)
