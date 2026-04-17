@@ -47,13 +47,31 @@ def download_favicon(site):
     threading.Thread(target=_download, daemon=True).start()
 
 def get_chrome_url():
-    """macOS AppleScript를 이용해 Google Chrome의 현재 탭 URL을 가져옵니다."""
-    try:
-        script = 'tell application "Google Chrome" to get URL of active tab of front window'
-        result = subprocess.check_output(['osascript', '-e', script], stderr=subprocess.DEVNULL).decode('utf-8').strip()
-        return result
-    except:
-        return None
+    """OS별로 적절한 방법을 사용해 브라우저 정보를 가져옵니다."""
+    # macOS 환경
+    if sys.platform == "darwin":
+        try:
+            script = 'tell application "Google Chrome" to get URL of active tab of front window'
+            result = subprocess.check_output(['osascript', '-e', script], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+            return result
+        except:
+            return None
+            
+    # Windows 환경
+    elif sys.platform == "win32":
+        try:
+            # Windows에서는 창 제목을 통해 사이트를 감지 (가장 안정적인 방법)
+            import pygetwindow as gw
+            window = gw.getActiveWindow()
+            if window and ("Google Chrome" in window.title or "Microsoft Edge" in window.title):
+                return window.title
+            return None
+        except ImportError:
+            return "PC에 pygetwindow 라이브러리가 필요합니다."
+        except:
+            return None
+    
+    return None
 
 class Database:
     def __init__(self):
@@ -336,45 +354,51 @@ class PasswordManager(QMainWindow):
             pass
 
     def update_active_site(self):
-        """현재 크롬 탭을 확인하고 UI를 업데이트합니다."""
-        url = get_chrome_url()
-        if not url:
-            self.active_site_label.setText("🌐 Chrome이 실행 중이지 않거나 탭을 찾을 수 없습니다.")
+        """현재 브라우저 탭/창을 확인하고 UI를 업데이트합니다."""
+        info = get_chrome_url()
+        if not info:
+            self.active_site_label.setText("🌐 브라우저를 실행 중이지 않거나 감지할 수 없습니다.")
             self.active_site_label.setStyleSheet("background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; color: #adb5bd;")
             return
 
         try:
-            domain = urlparse(url).netloc.replace("www.", "")
-            if not domain: domain = url
+            # URL 형식이면 도메인 추출, 아니면 제목 그대로 사용
+            if info.startswith("http"):
+                target = urlparse(info).netloc.replace("www.", "").lower()
+            else:
+                # 창 제목에서 사이트명 부분만 추출 (예: "Naver - Google Chrome" -> "naver")
+                target = info.split('-')[0].strip().lower()
 
             # UI 업데이트
-            self.active_site_label.setText(f"📍 현재 접속 중: {domain}")
+            self.active_site_label.setText(f"📍 현재 감지됨: {target}")
             
             # DB에서 해당 사이트가 있는지 확인
             cur = self.db.conn.cursor()
             cur.execute("SELECT site FROM passwords")
             found = False
+            matched_site = ""
             for row in cur.fetchall():
-                site = row[0]
-                if site in domain or domain in site:
+                site = row[0].lower()
+                if site in target or target in site:
                     found = True
+                    matched_site = site
                     break
             
             if found:
-                self.active_site_label.setText(f"✅ [저장됨] {domain} - 비밀번호가 준비되었습니다.")
+                self.active_site_label.setText(f"✅ [저장됨] {matched_site} - 비밀번호가 준비되었습니다.")
                 self.active_site_label.setStyleSheet("background-color: #d1e7dd; border: 1px solid #a3cfbb; border-radius: 8px; padding: 10px; color: #0f5132; font-weight: bold;")
                 
                 # 새로운 사이트가 감지되었을 때만 팝업 표시
-                if domain != self.last_pop_site:
-                    self.last_pop_site = domain
+                if matched_site != self.last_pop_site:
+                    self.last_pop_site = matched_site
                     reply = QMessageBox.question(self, "비밀번호 복사", 
-                                                 f"'{domain}' 사이트가 감지되었습니다.\n비밀번호를 클립보드에 복사할까요?",
+                                                 f"'{matched_site}' 사이트가 감지되었습니다.\n비밀번호를 클립보드에 복사할까요?",
                                                  QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                     if reply == QMessageBox.StandardButton.Yes:
-                        self.match_and_copy(domain)
+                        self.match_and_copy(matched_site)
             else:
                 self.active_site_label.setStyleSheet("background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 10px; color: #856404;")
-                self.last_pop_site = "" # 저장 안 된 사이트로 이동 시 초기화
+                self.last_pop_site = ""
                 
         except Exception:
             pass
