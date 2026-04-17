@@ -1,0 +1,9 @@
+cffi==2.0.0
+cryptography==46.0.7
+pycparser==2.23
+pyperclip==1.11.0
+PyQt5_sip==12.17.1
+PyQt6==6.10.2
+PyQt6-Qt6==6.10.2
+PyQt6_sip==13.10.2
+typing_extensions==4.15.0
