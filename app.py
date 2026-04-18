@@ -18,8 +18,16 @@ import pyperclip
 from crypto_utils import generate_key, encrypt_data, decrypt_data
 from cryptography.exceptions import InvalidKey
 
-DB_PATH = "pwd_manager.db"
-ICON_DIR = "icons"
+# 실행 파일의 위치를 기준으로 경로를 설정합니다. (빌드 후 실행 문제 해결)
+if getattr(sys, 'frozen', False):
+    # .app 이나 .exe로 빌드된 경우
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # 일반 파이썬으로 실행하는 경우
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DB_PATH = os.path.join(BASE_DIR, "pwd_manager.db")
+ICON_DIR = os.path.join(BASE_DIR, "icons")
 
 if not os.path.exists(ICON_DIR):
     os.makedirs(ICON_DIR)

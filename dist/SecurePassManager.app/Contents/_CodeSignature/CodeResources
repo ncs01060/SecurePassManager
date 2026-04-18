@@ -390,7 +390,7 @@
 		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		yJcBY5r1osfXSJWghOjc200N82o=
+		1jc6K3r/efe3vQydLrL48PCZ1Yk=
 		</data>
 		<key>Resources/cryptography-46.0.7.dist-info/INSTALLER</key>
 		<data>
@@ -427,6 +427,10 @@
 		<key>Resources/icon-windowed.icns</key>
 		<data>
 		eEHOuYpZLB0vKGVIWGZOh5rH8+o=
+		</data>
+		<key>Resources/icons/www.naver.com.png</key>
+		<data>
+		wvv4P54HquwjCa25uNEHYGg3MX4=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -782,6 +786,11 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"31347cb45333c8be7752bb003b9729250f631f61"</string>
+		</dict>
+		<key>Frameworks/icons</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Resources/icons</string>
 		</dict>
 		<key>Frameworks/python3.9</key>
 		<dict>
@@ -1936,7 +1945,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oUkfgHpFshqJ4laKHpQjx/oea1w+M9/R4Z+oP0h3hvA=
+			NW/liXvPHr0BjPxT9kxRhYOrzIUZlFVlnd++ME/BKaI=
 			</data>
 		</dict>
 		<key>Resources/cryptography</key>
@@ -2005,6 +2014,13 @@
 			<key>hash2</key>
 			<data>
 			uQo7VuWRab4Phv4EEGmfQsyqFqDIXZgO8OtgaAMvCzY=
+			</data>
+		</dict>
+		<key>Resources/icons/www.naver.com.png</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Y7EXU1WoC7cS61ciTjLOYioT8wvFA9+sTennsgUllzM=
 			</data>
 		</dict>
 		<key>Resources/python3.9</key>
